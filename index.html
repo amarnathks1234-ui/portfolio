@@ -12,6 +12,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;0,800;1,700;1,800&display=swap"
     rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     /* ===== CSS RESET & BASE ===== */
     *,
@@ -813,6 +814,10 @@
       color: var(--text-dim);
     }
 
+    #email {
+      text-transform: lowercase;
+    }
+
     .form-input:focus,
     .form-textarea:focus {
       border-color: rgba(255, 255, 255, 0.3);
@@ -844,6 +849,97 @@
     .btn-submit:hover {
       opacity: 0.88;
       transform: translateY(-2px);
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-submit .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ===== FORM VALIDATION STATES ===== */
+    .form-group {
+      position: relative;
+    }
+
+    .form-error {
+      font-size: 11px;
+      color: #f87171;
+      margin-top: 4px;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      pointer-events: none;
+    }
+
+    .form-error.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .form-input.invalid,
+    .form-textarea.invalid {
+      border-color: #f87171;
+    }
+
+    .form-input.valid,
+    .form-textarea.valid {
+      border-color: #4ade80;
+    }
+
+    .form-status {
+      margin-top: 12px;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      pointer-events: none;
+    }
+
+    .form-status.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .form-status.success {
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      color: #4ade80;
+    }
+
+    .form-status.error {
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: #f87171;
+    }
+
+    .email-checking {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: none;
+    }
+
+    .email-checking.visible {
+      display: block;
     }
 
     /* ===== FOOTER ===== */
@@ -2065,7 +2161,7 @@
           <div class="contact-info-row">
             <div class="contact-info-item">
               <div class="contact-info-icon">✉</div>
-              <span>amarrr.eyy@.com</span>
+              <a href="mailto:amarrr.eyy@gmail.com" style="color:inherit;text-decoration:none;">amarrr.eyy@gmail.com</a>
             </div>
             <div class="contact-info-item">
               <div class="contact-info-icon">📍</div>
@@ -2082,11 +2178,14 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="name">Name</label>
-              <input class="form-input" type="text" id="name" name="name" placeholder="John Doe" required />
+              <input class="form-input" type="text" id="name" name="from_name" placeholder="John Doe" required />
+              <div class="form-error" id="name-error"></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="email">Email</label>
-              <input class="form-input" type="email" id="email" name="email" placeholder="john@example.com" required />
+              <input class="form-input" type="email" id="email" name="from_email" placeholder="john@example.com" required />
+              <div class="form-error" id="email-error"></div>
+              <div class="email-checking" id="email-checking">⏳ Verifying email...</div>
             </div>
           </div>
           <div class="form-group">
@@ -2097,6 +2196,7 @@
             <label class="form-label" for="message">Message</label>
             <textarea class="form-textarea" id="message" name="message" placeholder="Tell me about your project..."
               required></textarea>
+            <div class="form-error" id="message-error"></div>
           </div>
           <button type="submit" class="btn-submit" id="submit-btn">
             Send Message
@@ -2106,6 +2206,7 @@
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
           </button>
+          <div class="form-status" id="form-status"></div>
         </form>
       </div>
     </div>
@@ -2201,19 +2302,264 @@
     const statsRow = document.querySelector('.stats-row');
     if (statsRow) statsObserver.observe(statsRow);
 
+    // ===== EMAILJS INIT =====
+    // TODO: Replace with your actual EmailJS public key
+    emailjs.init('49qroBiVGR7P1PU1k');
+
     // ===== CONTACT FORM =====
-    document.getElementById('contactForm').addEventListener('submit', function (e) {
-      e.preventDefault();
+    (function () {
+      const form = document.getElementById('contactForm');
+      const nameInput = document.getElementById('name');
+      const emailInput = document.getElementById('email');
+      const messageInput = document.getElementById('message');
       const btn = document.getElementById('submit-btn');
-      const original = btn.innerHTML;
-      btn.textContent = '✓ Message sent!';
-      btn.style.cssText = 'background:#4ade80;color:#000;';
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.style.cssText = '';
-        this.reset();
-      }, 3000);
-    });
+      const statusDiv = document.getElementById('form-status');
+      const emailCheckingDiv = document.getElementById('email-checking');
+      const originalBtnHTML = btn.innerHTML;
+
+      // Email regex — RFC 5322 simplified
+      const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
+
+      // Disposable / throwaway email domains blocklist
+      const disposableDomains = new Set([
+        'tempmail.com', 'throwaway.email', 'guerrillamail.com', 'mailinator.com',
+        'yopmail.com', 'sharklasers.com', 'guerrillamailblock.com', 'grr.la',
+        'dispostable.com', 'trashmail.com', 'fakeinbox.com', 'tempail.com',
+        'temp-mail.org', 'emailondeck.com', 'mohmal.com', 'maildrop.cc',
+        'discard.email', 'getnada.com', 'harakirimail.com', '10minutemail.com',
+        'minutemail.com', 'tempmailaddress.com', 'burnermail.io', 'temp-mail.io',
+        'mailnesia.com', 'tempinbox.com', 'binkmail.com', 'safetymail.info'
+      ]);
+
+      // --- Helpers ---
+      function showError(inputEl, errorId, message) {
+        inputEl.classList.add('invalid');
+        inputEl.classList.remove('valid');
+        const errorEl = document.getElementById(errorId);
+        if (errorEl) {
+          errorEl.textContent = message;
+          errorEl.classList.add('visible');
+        }
+      }
+
+      function clearError(inputEl, errorId) {
+        inputEl.classList.remove('invalid');
+        const errorEl = document.getElementById(errorId);
+        if (errorEl) {
+          errorEl.textContent = '';
+          errorEl.classList.remove('visible');
+        }
+      }
+
+      function markValid(inputEl, errorId) {
+        inputEl.classList.remove('invalid');
+        inputEl.classList.add('valid');
+        const errorEl = document.getElementById(errorId);
+        if (errorEl) {
+          errorEl.textContent = '';
+          errorEl.classList.remove('visible');
+        }
+      }
+
+      function showStatus(message, type) {
+        statusDiv.textContent = message;
+        statusDiv.className = 'form-status ' + type + ' visible';
+        setTimeout(() => {
+          statusDiv.classList.remove('visible');
+        }, 5000);
+      }
+
+      function setLoading(isLoading) {
+        btn.disabled = isLoading;
+        if (isLoading) {
+          btn.innerHTML = '<span class="spinner"></span> Sending...';
+        } else {
+          btn.innerHTML = originalBtnHTML;
+        }
+      }
+
+      // --- Email Validation (deep check via DNS MX lookup) ---
+      let emailValidationTimer = null;
+      let lastCheckedEmail = '';
+      let emailIsValid = false;
+
+      async function verifyEmailDomain(email) {
+        const domain = email.split('@')[1];
+        if (!domain) return { valid: false, reason: 'Missing domain' };
+
+        // Check disposable domains
+        if (disposableDomains.has(domain.toLowerCase())) {
+          return { valid: false, reason: 'Disposable/temporary emails are not allowed' };
+        }
+
+        // Verify domain has MX records using Google DNS-over-HTTPS
+        try {
+          const resp = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=MX`);
+          const data = await resp.json();
+          if (data.Answer && data.Answer.length > 0) {
+            return { valid: true };
+          }
+          // Fallback: check A record (some domains accept email without MX)
+          const respA = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`);
+          const dataA = await respA.json();
+          if (dataA.Answer && dataA.Answer.length > 0) {
+            return { valid: true };
+          }
+          return { valid: false, reason: 'This email domain does not appear to accept emails' };
+        } catch (err) {
+          // Network error — be lenient and allow the submission
+          return { valid: true };
+        }
+      }
+
+      emailInput.addEventListener('input', function () {
+        const val = this.value.trim();
+        emailIsValid = false;
+
+        // Clear previous timer
+        if (emailValidationTimer) clearTimeout(emailValidationTimer);
+
+        if (!val) {
+          clearError(this, 'email-error');
+          emailCheckingDiv.classList.remove('visible');
+          return;
+        }
+
+        // Basic format check first
+        if (!emailRegex.test(val)) {
+          showError(this, 'email-error', 'Please enter a valid email address');
+          emailCheckingDiv.classList.remove('visible');
+          return;
+        }
+
+        clearError(this, 'email-error');
+
+        // Debounce the DNS check (800ms after user stops typing)
+        emailValidationTimer = setTimeout(async () => {
+          if (val === lastCheckedEmail && emailIsValid) return;
+
+          emailCheckingDiv.classList.add('visible');
+          const result = await verifyEmailDomain(val);
+          emailCheckingDiv.classList.remove('visible');
+
+          if (result.valid) {
+            markValid(emailInput, 'email-error');
+            emailIsValid = true;
+            lastCheckedEmail = val;
+          } else {
+            showError(emailInput, 'email-error', result.reason);
+            emailIsValid = false;
+          }
+        }, 800);
+      });
+
+      // --- Real-time validation for name & message ---
+      nameInput.addEventListener('blur', function () {
+        if (!this.value.trim()) {
+          showError(this, 'name-error', 'Name is required');
+        } else if (this.value.trim().length < 2) {
+          showError(this, 'name-error', 'Name must be at least 2 characters');
+        } else {
+          markValid(this, 'name-error');
+        }
+      });
+
+      nameInput.addEventListener('input', function () {
+        if (this.value.trim().length >= 2) {
+          markValid(this, 'name-error');
+        }
+      });
+
+      messageInput.addEventListener('blur', function () {
+        if (!this.value.trim()) {
+          showError(this, 'message-error', 'Message is required');
+        } else if (this.value.trim().length < 10) {
+          showError(this, 'message-error', 'Please write at least 10 characters');
+        } else {
+          markValid(this, 'message-error');
+        }
+      });
+
+      messageInput.addEventListener('input', function () {
+        if (this.value.trim().length >= 10) {
+          markValid(this, 'message-error');
+        }
+      });
+
+      // --- Form Submit ---
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        // Validate all fields
+        let hasErrors = false;
+
+        const name = nameInput.value.trim();
+        const email = emailInput.value.trim();
+        const message = messageInput.value.trim();
+
+        if (!name) {
+          showError(nameInput, 'name-error', 'Name is required');
+          hasErrors = true;
+        } else if (name.length < 2) {
+          showError(nameInput, 'name-error', 'Name must be at least 2 characters');
+          hasErrors = true;
+        }
+
+        if (!email) {
+          showError(emailInput, 'email-error', 'Email is required');
+          hasErrors = true;
+        } else if (!emailRegex.test(email)) {
+          showError(emailInput, 'email-error', 'Please enter a valid email address');
+          hasErrors = true;
+        }
+
+        if (!message) {
+          showError(messageInput, 'message-error', 'Message is required');
+          hasErrors = true;
+        } else if (message.length < 10) {
+          showError(messageInput, 'message-error', 'Please write at least 10 characters');
+          hasErrors = true;
+        }
+
+        // If email format is valid but domain hasn't been checked yet, check now
+        if (!hasErrors && emailRegex.test(email) && !emailIsValid) {
+          setLoading(true);
+          const domainResult = await verifyEmailDomain(email);
+          if (!domainResult.valid) {
+            showError(emailInput, 'email-error', domainResult.reason);
+            setLoading(false);
+            return;
+          }
+          emailIsValid = true;
+        }
+
+        if (hasErrors) return;
+
+        // All good — send via EmailJS
+        setLoading(true);
+
+        try {
+          // TODO: Replace 'YOUR_SERVICE_ID' and 'YOUR_TEMPLATE_ID' with your actual EmailJS IDs
+          await emailjs.sendForm('service_8c1qk2n', 'template_3u808sn', form);
+
+          // Success
+          showStatus('✓ Message sent successfully! I\'ll get back to you soon.', 'success');
+          form.reset();
+          // Clear all valid states
+          [nameInput, emailInput, messageInput].forEach(el => {
+            el.classList.remove('valid', 'invalid');
+          });
+          emailIsValid = false;
+          lastCheckedEmail = '';
+        } catch (error) {
+          console.error('EmailJS error:', error);
+          const errMsg = error?.text || error?.message || JSON.stringify(error);
+          showStatus('✗ Failed: ' + errMsg, 'error');
+        } finally {
+          setLoading(false);
+        }
+      });
+    })();
   </script>
 </body>
 
